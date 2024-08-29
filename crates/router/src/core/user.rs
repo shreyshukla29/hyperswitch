@@ -131,6 +131,13 @@ pub async fn signup(
     let user_from_db = new_user
         .insert_user_and_merchant_in_db(state.clone())
         .await?;
+
+    let merchant_id = new_user.get_new_merchant().get_merchant_id();
+    let org_id = new_user
+        .get_new_merchant()
+        .get_new_organization()
+        .get_organization_id();
+
     let user_role = new_user
         .insert_user_role_in_db(
             state.clone(),
@@ -140,12 +147,21 @@ pub async fn signup(
         .await?;
     utils::user_role::set_role_permissions_in_cache_by_user_role(&state, &user_role).await;
 
-    let token =
-        utils::user::generate_jwt_auth_token_without_profile(&state, &user_from_db, &user_role)
-            .await?;
-    let response =
-        utils::user::get_dashboard_entry_response(&state, user_from_db, user_role, token.clone())?;
-
+    let token = utils::user::generate_jwt_auth_token_without_profile(
+        &state,
+        &user_from_db,
+        &org_id,
+        &merchant_id,
+        &user_role.role_id,
+    )
+    .await?;
+    let response = utils::user::get_dashboard_entry_response(
+        &state,
+        user_from_db,
+        merchant_id,
+        user_role.role_id,
+        token.clone(),
+    )?;
     auth::cookies::set_cookie_response(user_api::TokenOrPayloadResponse::Payload(response), token)
 }
 
@@ -1414,8 +1430,14 @@ pub async fn switch_merchant_id(
             .ok_or(report!(UserErrors::InvalidRoleOperation))
             .attach_printable("User doesn't have access to switch")?;
 
-        let token =
-            utils::user::generate_jwt_auth_token_without_profile(&state, &user, user_role).await?;
+        let token = utils::user::generate_jwt_auth_token_without_profile(
+            &state,
+            &user,
+            &user_from_token.org_id,
+            &request.merchant_id,
+            &user_role.role_id,
+        )
+        .await?;
         utils::user_role::set_role_permissions_in_cache_by_user_role(&state, user_role).await;
 
         (token, user_role.role_id.clone())

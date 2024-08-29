@@ -3,7 +3,7 @@ use std::{collections::HashSet, ops, str::FromStr};
 use api_models::{
     admin as admin_api, organization as api_org, user as user_api, user_role as user_role_api,
 };
-use common_enums::TokenPurpose;
+use common_enums::{EntityType, TokenPurpose};
 use common_utils::{
     crypto::Encryptable, errors::CustomResult, id_type, new_type::MerchantName, pii, type_name,
     types::keymanager::Identifier,
@@ -15,6 +15,7 @@ use diesel_models::{
     user_role::{UserRole, UserRoleNew},
 };
 use error_stack::{report, ResultExt};
+use hyperswitch_domain_models::merchant_account::MerchantAccount;
 use masking::{ExposeInterface, PeekInterface, Secret};
 use once_cell::sync::Lazy;
 use rand::distributions::{Alphanumeric, DistString};
@@ -1148,16 +1149,25 @@ impl SignInWithSingleRoleStrategy {
         self,
         state: &SessionState,
     ) -> UserResult<user_api::SignInResponse> {
+        let merchant_account =
+            utils::user_role::get_all_merchant_accounts(state, &self.user_role).await?;
         let token = utils::user::generate_jwt_auth_token_without_profile(
             state,
             &self.user,
-            &self.user_role,
+            &merchant_account.organization_id,
+            merchant_account.get_id(),
+            &self.user_role.role_id,
         )
         .await?;
         utils::user_role::set_role_permissions_in_cache_by_user_role(state, &self.user_role).await;
 
-        let dashboard_entry_response =
-            utils::user::get_dashboard_entry_response(state, self.user, *self.user_role, token)?;
+        let dashboard_entry_response = utils::user::get_dashboard_entry_response(
+            state,
+            self.user,
+            merchant_account.get_id().clone(),
+            merchant_account.organization_id.clone(),
+            token,
+        )?;
 
         Ok(user_api::SignInResponse::DashboardEntry(
             dashboard_entry_response,
@@ -1175,31 +1185,8 @@ impl SignInWithMultipleRolesStrategy {
         self,
         state: &SessionState,
     ) -> UserResult<user_api::SignInResponse> {
-        let merchant_accounts = state
-            .store
-            .list_multiple_merchant_accounts(
-                &state.into(),
-                self.user_roles
-                    .iter()
-                    .map(|role| {
-                        role.merchant_id
-                            .clone()
-                            .ok_or(UserErrors::InternalServerError)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-            )
-            .await
-            .change_context(UserErrors::InternalServerError)?;
-
-        let roles =
-            utils::user_role::get_multiple_role_info_for_user_roles(state, &self.user_roles)
-                .await?;
-
-        let merchant_details = utils::user::get_multiple_merchant_details_with_status(
-            self.user_roles,
-            merchant_accounts,
-            roles,
-        )?;
+        let merchant_details =
+            utils::user::get_multiple_merchant_details_with_status(state, self.user_roles).await?;
 
         Ok(user_api::SignInResponse::MerchantSelect(
             user_api::MerchantSelectResponse {

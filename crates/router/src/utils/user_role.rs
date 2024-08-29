@@ -1,13 +1,14 @@
 use std::collections::HashSet;
 
 use api_models::user_role as user_role_api;
-use common_enums::PermissionGroup;
+use common_enums::{EntityType, PermissionGroup};
 use common_utils::id_type;
 use diesel_models::{
     enums::UserRoleVersion,
     user_role::{UserRole, UserRoleUpdate},
 };
 use error_stack::{report, Report, ResultExt};
+use hyperswitch_domain_models::merchant_account::MerchantAccount;
 use router_env::logger;
 use storage_impl::errors::StorageError;
 
@@ -221,4 +222,105 @@ pub async fn update_v1_and_v2_user_roles_in_db(
         });
 
     (updated_v1_role, updated_v2_role)
+}
+
+pub async fn get_single_merchant_id(
+    state: &SessionState,
+    user_role: &UserRole,
+) -> UserResult<id_type::MerchantId> {
+    match user_role.entity_type {
+        Some(EntityType::Organization) => Ok(state
+            .store
+            .list_merchant_accounts_by_organization_id(
+                &state.into(),
+                user_role
+                    .org_id
+                    .as_ref()
+                    .ok_or(UserErrors::InternalServerError)
+                    .attach_printable("org_id not found")?
+                    .get_string_repr(),
+            )
+            .await
+            .change_context(UserErrors::InternalServerError)
+            .attach_printable("Failed to get merchant list for org")?
+            .first()
+            .ok_or(UserErrors::InternalServerError)
+            .attach_printable("No merchants found for org_id")?
+            .get_id()
+            .clone()),
+        Some(EntityType::Merchant)
+        | Some(EntityType::Internal)
+        | Some(EntityType::Profile)
+        | None => user_role
+            .merchant_id
+            .clone()
+            .ok_or(UserErrors::InternalServerError)
+            .attach_printable("merchant_id not found"),
+    }
+}
+
+pub async fn get_all_merchant_accounts(
+    state: &SessionState,
+    user_role: &UserRole,
+) -> UserResult<Vec<MerchantAccount>> {
+    match user_role.entity_type {
+        Some(EntityType::Organization) => Ok(state
+            .store
+            .list_merchant_accounts_by_organization_id(
+                &state.into(),
+                user_role
+                    .org_id
+                    .clone()
+                    .ok_or(UserErrors::InternalServerError)
+                    .attach_printable("org_id not found")?
+                    .get_string_repr(),
+            )
+            .await
+            .change_context(UserErrors::InternalServerError)
+            .attach_printable("Failed to get merchant list for org")?),
+        Some(EntityType::Merchant)
+        | Some(EntityType::Internal)
+        | Some(EntityType::Profile)
+        | None => {
+            let merchant_id = &user_role
+                .merchant_id
+                .ok_or(UserErrors::InternalServerError)
+                .attach_printable("merchant_id not found")?;
+
+            get_merchant_account_from_db(state, merchant_id).await
+        }
+    }
+}
+
+pub async fn get_single_merchant_account(
+    state: &SessionState,
+    user_role: &UserRole,
+) -> UserResult<MerchantAccount> {
+    get_all_merchant_accounts(state, user_role)
+        .await?
+        .first()
+        .ok_or(UserErrors::InternalServerError)
+}
+
+pub async fn get_merchant_account_from_db(
+    state: &SessionState,
+    merchant_id: &id_type::MerchantId,
+) -> UserResult<MerchantAccount> {
+    let key_store = state
+        .store
+        .get_merchant_key_store_by_merchant_id(
+            &state.into(),
+            &merchant_id,
+            &state.store.get_master_key().to_vec().into(),
+        )
+        .await
+        .change_context(UserErrors::InternalServerError)
+        .attach_printable("Failed to get key_store for merchant_id")?;
+
+    state
+        .store
+        .find_merchant_account_by_merchant_id(&state.into(), &merchant_id, &key_store)
+        .await
+        .change_context(UserErrors::InternalServerError)
+        .attach_printable("Failed to get merchant_account")?
 }
