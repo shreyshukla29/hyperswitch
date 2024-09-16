@@ -1690,6 +1690,7 @@ impl User {
 
         route = route
             .service(web::resource("").route(web::get().to(get_user_details)))
+            .service(web::resource("/send").route(web::get().to(send_emails)))
             .service(web::resource("/signin").route(web::post().to(user_signin)))
             .service(web::resource("/v2/signin").route(web::post().to(user_signin)))
             // signin/signup with sso using openidconnect

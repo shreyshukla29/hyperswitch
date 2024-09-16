@@ -403,3 +403,16 @@ pub struct ListProfilesForUserInOrgAndMerchantAccountResponse {
     pub profile_id: id_type::ProfileId,
     pub profile_name: String,
 }
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SendEmailRequest {
+    Verify,
+    Reset,
+    MagicLink,
+    InviteUser,
+    BizEmailProd,
+    ReconActivation,
+    ProFeatureRequest,
+    ApiKeyExpiryReminder,
+}

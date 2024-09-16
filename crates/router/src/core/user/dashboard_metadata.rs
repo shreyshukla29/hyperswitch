@@ -475,17 +475,15 @@ async fn insert_metadata(
                     .get_secret()
                     .expose();
 
-                if utils::is_prod_email_required(&data, user_email) {
-                    let email_contents = email_types::BizEmailProd::new(state, data)?;
-                    let send_email_result = state
-                        .email_client
-                        .compose_and_send_email(
-                            Box::new(email_contents),
-                            state.conf.proxy.https_url.as_ref(),
-                        )
-                        .await;
-                    logger::info!(?send_email_result);
-                }
+                let email_contents = email_types::BizEmailProd::new(state, data)?;
+                let send_email_result = state
+                    .email_client
+                    .compose_and_send_email(
+                        Box::new(email_contents),
+                        state.conf.proxy.https_url.as_ref(),
+                    )
+                    .await;
+                logger::info!(?send_email_result);
             }
 
             metadata

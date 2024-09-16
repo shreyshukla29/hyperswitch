@@ -18,6 +18,7 @@ use diesel_models::{
     user_authentication_method::{UserAuthenticationMethodNew, UserAuthenticationMethodUpdate},
 };
 use error_stack::{report, ResultExt};
+use external_services::email::EmailData;
 use masking::{ExposeInterface, PeekInterface, Secret};
 #[cfg(feature = "email")]
 use router_env::env;
@@ -3174,4 +3175,96 @@ pub async fn switch_profile_for_user_in_org_and_merchant(
     };
 
     auth::cookies::set_cookie_response(response, token)
+}
+
+pub async fn send_emails(
+    state: SessionState,
+    request: user_api::SendEmailRequest,
+) -> UserResponse<user_api::AuthorizeResponse> {
+    let recipient_email =
+        domain::UserEmail::from_pii_email(state.conf.recipient_emails.recon.clone())?;
+    let subject = "Hello this is test";
+    let auth_id = Some("12094390u230948234u".to_string());
+    let user_name = domain::UserName::new(Secret::new("Test user".to_string()))?;
+
+    let email_data: Box<dyn EmailData + Send> = match request {
+        user_api::SendEmailRequest::Verify => Box::new(email_types::VerifyEmail {
+            recipient_email,
+            settings: state.conf.clone(),
+            subject,
+            auth_id,
+        }),
+        user_api::SendEmailRequest::Reset => Box::new(email_types::ResetPassword {
+            recipient_email,
+            user_name,
+            settings: state.conf.clone(),
+            subject,
+            auth_id,
+        }),
+        user_api::SendEmailRequest::MagicLink => Box::new(email_types::VerifyEmail {
+            recipient_email,
+            settings: state.conf.clone(),
+            subject,
+            auth_id,
+        }),
+        user_api::SendEmailRequest::InviteUser => Box::new(email_types::InviteUser {
+            recipient_email,
+            user_name,
+            settings: state.conf.clone(),
+            subject,
+            entity: email_types::Entity {
+                entity_id: "Test".to_string(),
+                entity_type: EntityType::Merchant,
+            },
+            auth_id,
+        }),
+        user_api::SendEmailRequest::BizEmailProd => Box::new(email_types::BizEmailProd {
+            recipient_email,
+            user_name: Secret::new("Test User".to_string()),
+            poc_email: Secret::new("testuser@testdomain.com".to_string()),
+            legal_business_name: "Test business".to_string(),
+            business_location: "Ness Technologies".to_string(),
+            business_website: "https://hyperswitch.io".to_string(),
+            settings: state.conf.clone(),
+            subject,
+        }),
+        user_api::SendEmailRequest::ReconActivation => Box::new(email_types::ReconActivation {
+            recipient_email,
+            user_name,
+            settings: state.conf.clone(),
+            subject,
+        }),
+        user_api::SendEmailRequest::ProFeatureRequest => Box::new(email_types::ProFeatureRequest {
+            recipient_email,
+            feature_name: "AI".to_string(),
+            merchant_id: common_utils::id_type::MerchantId::wrap("merchant_1231231234".to_string())
+                .change_context(UserErrors::InternalServerError)?,
+            user_name,
+            user_email: domain::UserEmail::new(Secret::new("testuser@testdomain.com".to_string()))?,
+            settings: state.conf.clone(),
+            subject: subject.to_string(),
+        }),
+        user_api::SendEmailRequest::ApiKeyExpiryReminder => {
+            Box::new(email_types::ApiKeyExpiryReminder {
+                recipient_email,
+                subject,
+                expires_in: 123,
+                api_key_name: "Hello".to_string(),
+                prefix: "Another Hello".to_string(),
+            })
+        }
+    };
+
+    let is_email_sent = state
+        .email_client
+        .compose_and_send_email(email_data, state.conf.proxy.https_url.as_ref())
+        .await
+        .map(|email_result| logger::info!(email_ok=?email_result))
+        .map_err(|email_result| logger::error!(email_error=?email_result))
+        .is_ok();
+
+    Ok(ApplicationResponse::Json(user_api::AuthorizeResponse {
+        is_email_sent,
+        user_id: "ldksjfslkj".to_string(),
+    }))
 }

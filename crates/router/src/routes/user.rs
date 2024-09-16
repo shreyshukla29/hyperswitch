@@ -1000,3 +1000,21 @@ pub async fn switch_profile_for_user_in_org_and_merchant(
     ))
     .await
 }
+
+pub async fn send_emails(
+    state: web::Data<AppState>,
+    http_req: HttpRequest,
+    json_payload: web::Json<user_api::SendEmailRequest>,
+) -> HttpResponse {
+    let flow = Flow::ListRoles;
+    Box::pin(api::server_wrap(
+        flow,
+        state.clone(),
+        &http_req,
+        json_payload.into_inner(),
+        |state, _: (), req, _| user_core::send_emails(state, req),
+        &auth::DashboardNoPermissionAuth,
+        api_locking::LockAction::NotApplicable,
+    ))
+    .await
+}
