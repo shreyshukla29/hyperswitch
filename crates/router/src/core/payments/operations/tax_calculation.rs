@@ -176,7 +176,10 @@ impl<F: Send + Clone> GetTracker<F, PaymentData<F>, api::PaymentsDynamicTaxCalcu
             recurring_details: None,
             poll_config: None,
             tax_data: Some(tax_data),
+            session_id: request.session_id.clone(),
         };
+
+        println!("$$session_id_tax_cal: {:?}", request.session_id);
         let get_trackers_response = operations::GetTrackerResponse {
             operation: Box::new(self),
             customer_details: None,

@@ -192,6 +192,52 @@ impl TryFrom<types::PaymentsSessionResponseRouterData<KlarnaSessionResponse>>
     }
 }
 
+#[derive(Debug, Serialize)]
+pub struct KlarnaSessionUpdateRequest {
+    order_amount: i64, //total amount including tax
+    order_tax_amount: i64,
+}
+
+impl TryFrom<&KlarnaRouterData<&types::SdkSessionUpdateRouterData>> for KlarnaSessionUpdateRequest {
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: &KlarnaRouterData<&types::SdkSessionUpdateRouterData>,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self {
+            order_amount: item.router_data.request.net_amount.get_amount_as_i64(),
+            order_tax_amount: item
+                .router_data
+                .request
+                .order_tax_amount
+                .get_amount_as_i64(),
+        })
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct KlarnaSessioUpdateResponse;
+
+impl TryFrom<types::SdkSessionUpdateResponseRouterData<KlarnaSessioUpdateResponse>>
+    for types::SdkSessionUpdateRouterData
+{
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(
+        item: types::SdkSessionUpdateResponseRouterData<KlarnaSessioUpdateResponse>,
+    ) -> Result<Self, Self::Error> {
+        // https://docs.klarna.com/api/payments/#operation/updateCreditSession
+        // If 204 status code, then the session was updated successfully.
+        let status = if item.http_code == 204 {
+            enums::SessionUpdateStatus::Success
+        } else {
+            enums::SessionUpdateStatus::Failure
+        };
+        Ok(Self {
+            response: Ok(types::PaymentsResponseData::SessionUpdateResponse { status }),
+            ..item.data
+        })
+    }
+}
+
 impl TryFrom<&KlarnaRouterData<&types::PaymentsAuthorizeRouterData>> for KlarnaPaymentsRequest {
     type Error = error_stack::Report<errors::ConnectorError>;
 

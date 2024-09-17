@@ -48,6 +48,7 @@ pub async fn construct_router_data_to_update_calculated_tax<'a, F, T>(
     _key_store: &domain::MerchantKeyStore,
     customer: &'a Option<domain::Customer>,
     merchant_connector_account: &helpers::MerchantConnectorAccountType,
+    merchant_recipient_data: Option<types::MerchantRecipientData>,
 ) -> RouterResult<types::RouterData<F, T, types::PaymentsResponseData>>
 where
     T: TryFrom<PaymentAdditionalData<'a, F>>,
@@ -117,7 +118,14 @@ where
             .payment_attempt
             .authentication_type
             .unwrap_or_default(),
-        connector_meta_data: None,
+        connector_meta_data: if let Some(data) = merchant_recipient_data {
+            let val = serde_json::to_value(data)
+                .change_context(errors::ApiErrorResponse::InternalServerError)
+                .attach_printable("Failed while encoding MerchantRecipientData")?;
+            Some(Secret::new(val))
+        } else {
+            merchant_connector_account.get_metadata()
+        },
         connector_wallets_details: None,
         request: T::try_from(additional_data)?,
         response,
@@ -2017,9 +2025,13 @@ impl<F: Clone> TryFrom<PaymentAdditionalData<'_, F>> for types::SdkPaymentsSessi
             })?;
         let amount = payment_data.payment_intent.amount;
 
+        println!("$$session_id_add_data: {:?}", payment_data.session_id.clone());
+
         Ok(Self {
             net_amount: amount + order_tax_amount, //need to change after we move to connector module
             order_tax_amount,
+            currency: payment_data.currency,
+            session_id: payment_data.session_id,
         })
     }
 }

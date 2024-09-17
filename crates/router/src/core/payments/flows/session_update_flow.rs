@@ -27,7 +27,7 @@ impl
         key_store: &domain::MerchantKeyStore,
         customer: &Option<domain::Customer>,
         merchant_connector_account: &helpers::MerchantConnectorAccountType,
-        _merchant_recipient_data: Option<types::MerchantRecipientData>,
+        merchant_recipient_data: Option<types::MerchantRecipientData>,
     ) -> RouterResult<types::SdkSessionUpdateRouterData> {
         Box::pin(
             transformers::construct_router_data_to_update_calculated_tax::<
@@ -41,6 +41,7 @@ impl
                 key_store,
                 customer,
                 merchant_connector_account,
+                merchant_recipient_data,
             ),
         )
         .await
