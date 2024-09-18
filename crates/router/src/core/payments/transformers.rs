@@ -2025,7 +2025,10 @@ impl<F: Clone> TryFrom<PaymentAdditionalData<'_, F>> for types::SdkPaymentsSessi
             })?;
         let amount = payment_data.payment_intent.amount;
 
-        println!("$$session_id_add_data: {:?}", payment_data.session_id.clone());
+        println!(
+            "$$session_id_add_data: {:?}",
+            payment_data.session_id.clone()
+        );
 
         Ok(Self {
             net_amount: amount + order_tax_amount, //need to change after we move to connector module

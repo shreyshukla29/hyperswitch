@@ -306,10 +306,13 @@ impl
         let endpoint =
             build_region_specific_endpoint(self.base_url(connectors), &req.connector_meta_data)?;
 
-
-        let session_id = req.request.session_id.clone().ok_or(errors::ConnectorError::MissingRequiredField { field_name: "session_id" })?;
-
-       
+        let session_id =
+            req.request
+                .session_id
+                .clone()
+                .ok_or(errors::ConnectorError::MissingRequiredField {
+                    field_name: "session_id",
+                })?;
 
         Ok(format!("{endpoint}payments/v1/sessions/{session_id}"))
     }
