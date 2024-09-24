@@ -219,9 +219,9 @@ impl TryFrom<&KlarnaRouterData<&types::PaymentsAuthorizeRouterData>> for KlarnaP
         item: &KlarnaRouterData<&types::PaymentsAuthorizeRouterData>,
     ) -> Result<Self, Self::Error> {
         let request = &item.router_data.request;
-       let amount = item.amount;
-    //    let order = item.router_data.request.order_details
-       println!("$$order_amount: {:?}", amount);
+        let amount = item.amount;
+        //    let order = item.router_data.request.order_details
+        println!("$$order_amount: {:?}", amount);
         match request.order_details.clone() {
             Some(order_details) => Ok(Self {
                 purchase_country: item.router_data.get_billing_country()?,

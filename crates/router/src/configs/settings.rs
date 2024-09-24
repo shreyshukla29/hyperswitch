@@ -6,7 +6,7 @@ use std::{
 #[cfg(feature = "olap")]
 use analytics::{opensearch::OpenSearchConfig, ReportConfig};
 use api_models::{enums, payment_methods::RequiredFieldInfo};
-use common_utils::{ext_traits::ConfigExt, pii::Email};
+use common_utils::ext_traits::ConfigExt;
 use config::{Environment, File};
 use error_stack::ResultExt;
 #[cfg(feature = "email")]
@@ -122,7 +122,8 @@ pub struct Settings<S: SecretState> {
     pub decision: Option<DecisionConfig>,
     pub locker_based_open_banking_connectors: LockerBasedRecipientConnectorList,
     pub grpc_client: GrpcClientSettings,
-    pub recipient_emails: RecipientMails,
+    #[cfg(feature = "v2")]
+    pub cell_information: CellInformation,
     pub network_tokenization_supported_card_networks: NetworkTokenizationSupportedCardNetworks,
     pub network_tokenization_service: Option<SecretStateContainer<NetworkTokenizationService, S>>,
     pub network_tokenization_supported_connectors: NetworkTokenizationSupportedConnectors,
@@ -855,6 +856,8 @@ impl Settings<SecuredSecret> {
         self.generic_link.payment_method_collect.validate()?;
         self.generic_link.payout_link.validate()?;
 
+        #[cfg(feature = "v2")]
+        self.cell_information.validate()?;
         self.network_tokenization_service
             .as_ref()
             .map(|x| x.get_inner().validate())
@@ -941,9 +944,24 @@ pub struct ServerTls {
     pub certificate: PathBuf,
 }
 
-#[derive(Debug, Deserialize, Clone, Default)]
-pub struct RecipientMails {
-    pub recon: Email,
+#[cfg(feature = "v2")]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct CellInformation {
+    pub id: common_utils::id_type::CellId,
+}
+
+#[cfg(feature = "v2")]
+impl Default for CellInformation {
+    fn default() -> Self {
+        // We provide a static default cell id for constructing application settings.
+        // This will only panic at application startup if we're unable to construct the default,
+        // around the time of deserializing application settings.
+        // And a panic at application startup is considered acceptable.
+        #[allow(clippy::expect_used)]
+        let cell_id = common_utils::id_type::CellId::from_str("defid")
+            .expect("Failed to create a default for Cell Id");
+        Self { id: cell_id }
+    }
 }
 
 fn deserialize_hashmap_inner<K, V>(

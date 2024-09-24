@@ -226,7 +226,7 @@ impl
 
         let connector_req = klarna::KlarnaSessionRequest::try_from(&connector_router_data)?;
         // encode only for for urlencoded things.
-         let printrequest =
+        let printrequest =
             common_utils::ext_traits::Encode::encode_to_string_of_json(&connector_req)
                 .change_context(errors::ConnectorError::RequestEncodingFailed)?;
         println!("$$$$$klarna session req {:?}", printrequest);
@@ -359,7 +359,7 @@ impl
         let connector_req = klarna::KlarnaSessionUpdateRequest::try_from(&connector_router_data)?;
         // encode only for for urlencoded things.
 
-         let printrequest =
+        let printrequest =
             common_utils::ext_traits::Encode::encode_to_string_of_json(&connector_req)
                 .change_context(errors::ConnectorError::RequestEncodingFailed)?;
         println!("$$$$$klarna session update req {:?}", printrequest);
@@ -792,7 +792,7 @@ impl
             req,
         ))?;
         let connector_req = klarna::KlarnaPaymentsRequest::try_from(&connector_router_data)?;
-         let printrequest =
+        let printrequest =
             common_utils::ext_traits::Encode::encode_to_string_of_json(&connector_req)
                 .change_context(errors::ConnectorError::RequestEncodingFailed)?;
         println!("$$$$$klarna auth req {:?}", printrequest);
