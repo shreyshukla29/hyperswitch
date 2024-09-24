@@ -40,6 +40,7 @@ use crate::{
     utils::{OptionExt, ValueExt},
 };
 
+#[allow(clippy::too_many_arguments)]
 pub async fn construct_router_data_to_update_calculated_tax<'a, F, T>(
     state: &'a SessionState,
     payment_data: PaymentData<F>,
@@ -2024,11 +2025,6 @@ impl<F: Clone> TryFrom<PaymentAdditionalData<'_, F>> for types::SdkPaymentsSessi
                 field_name: "order_tax_amount",
             })?;
         let amount = payment_data.payment_intent.amount;
-
-        println!(
-            "$$session_id_add_data: {:?}",
-            payment_data.session_id.clone()
-        );
 
         Ok(Self {
             net_amount: amount + order_tax_amount, //need to change after we move to connector module
