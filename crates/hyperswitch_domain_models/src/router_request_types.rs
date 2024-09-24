@@ -814,7 +814,7 @@ pub struct SdkPaymentsSessionUpdateData {
     pub net_amount: MinorUnit,
     pub currency: storage_enums::Currency,
     pub session_id: Option<String>,
-    // line_item: tax
+    pub order_details: Option<Vec<api_models::payments::OrderDetailsWithAmount>>,
 }
 
 #[derive(Debug, Clone)]

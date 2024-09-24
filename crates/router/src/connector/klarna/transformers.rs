@@ -1,5 +1,6 @@
 use api_models::payments;
 use common_utils::pii;
+use diesel_models::schema::captures::tax_amount;
 use error_stack::{report, ResultExt};
 use hyperswitch_domain_models::router_data::KlarnaSdkResponse;
 use masking::{ExposeInterface, Secret};
@@ -158,6 +159,8 @@ impl TryFrom<&KlarnaRouterData<&types::PaymentsSessionRouterData>> for KlarnaSes
                         quantity: data.quantity,
                         unit_price: data.amount,
                         total_amount: i64::from(data.quantity) * (data.amount),
+                        tax_rate: None,
+                        total_tax_amount: None,
                     })
                     .collect(),
                 shipping_address: get_address_info(item.router_data.get_optional_shipping())
@@ -194,7 +197,9 @@ impl TryFrom<types::PaymentsSessionResponseRouterData<KlarnaSessionResponse>>
 
 #[derive(Debug, Serialize)]
 pub struct KlarnaSessionUpdateRequest {
+    order_amount: i64,
     order_tax_amount: i64,
+    order_lines: Vec<OrderLines>,
 }
 
 impl TryFrom<&KlarnaRouterData<&types::SdkSessionUpdateRouterData>> for KlarnaSessionUpdateRequest {
@@ -202,13 +207,36 @@ impl TryFrom<&KlarnaRouterData<&types::SdkSessionUpdateRouterData>> for KlarnaSe
     fn try_from(
         item: &KlarnaRouterData<&types::SdkSessionUpdateRouterData>,
     ) -> Result<Self, Self::Error> {
-        Ok(Self {
-            order_tax_amount: item
-                .router_data
-                .request
-                .order_tax_amount
-                .get_amount_as_i64(),
-        })
+        let request = &item.router_data.request;
+        let net_amount = request.net_amount.get_amount_as_i64();
+        // let order_tax_amout= 190;
+        let order_tax_amount = request.order_tax_amount.get_amount_as_i64();
+        let order_amount = net_amount - order_tax_amount;
+        println!("$$$order_tax_amount{:?}", order_tax_amount);
+        let tax_rate = order_tax_amount as f64 / order_amount as f64; //0.095
+        println!("$$$item.amount{:?}", item.amount);
+        println!("$$$tax_rate{:?}", tax_rate);
+        match request.order_details.clone() {
+            Some(order_details) => Ok(Self {
+                order_amount: net_amount,
+                order_tax_amount,
+                order_lines: order_details
+                    .iter()
+                    .map(|data| OrderLines {
+                        name: data.product_name.clone(),
+                        quantity: data.quantity,
+                        total_tax_amount: Some((tax_rate * data.amount as f64) as i64),
+                        unit_price: ((tax_rate * data.amount as f64) as i64 + data.amount),
+                        total_amount: i64::from(data.quantity)
+                            * ((tax_rate * data.amount as f64) + data.amount as f64) as i64,
+                        tax_rate: Some((tax_rate * 10_000.0) as i64),
+                    })
+                    .collect(),
+            }),
+            None => Err(report!(errors::ConnectorError::MissingRequiredField {
+                field_name: "order_details",
+            })),
+        }
     }
 }
 
@@ -234,6 +262,8 @@ impl TryFrom<&KlarnaRouterData<&types::PaymentsAuthorizeRouterData>> for KlarnaP
                         quantity: data.quantity,
                         unit_price: data.amount,
                         total_amount: i64::from(data.quantity) * (data.amount),
+                        tax_rate: None,
+                        total_tax_amount: None,
                     })
                     .collect(),
                 merchant_reference1: Some(item.router_data.connector_request_reference_id.clone()),
@@ -319,6 +349,8 @@ pub struct OrderLines {
     quantity: u16,
     unit_price: i64,
     total_amount: i64,
+    tax_rate: Option<i64>,
+    total_tax_amount: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
