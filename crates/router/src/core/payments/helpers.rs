@@ -1186,7 +1186,7 @@ pub fn create_authentication_url(
 pub fn create_authorize_url(
     router_base_url: &str,
     payment_attempt: &PaymentAttempt,
-    connector_name: &String,
+    connector_name: &str,
 ) -> String {
     format!(
         "{}/payments/{}/{}/authorize/{}",
