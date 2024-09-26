@@ -489,7 +489,7 @@ pub struct NovalnetSyncResponseTransactionData {
     pub currency: Option<common_enums::Currency>,
     pub date: Option<String>,
     pub order_no: Option<String>,
-    pub payment_data: NovalnetResponsePaymentData,
+    pub payment_data: Option<NovalnetResponsePaymentData>,
     pub payment_type: String,
     pub status: NovalnetTransactionStatus,
     pub status_code: u64,
@@ -683,7 +683,7 @@ impl TryFrom<RefundsResponseRouterData<Execute, NovalnetRefundResponse>>
                     .response
                     .transaction
                     .clone()
-                    .and_then(|data| data.tid.map(|tid| tid.expose().to_string()))
+                    .and_then(|data| data.refund.tid.map(|tid| tid.expose().to_string()))
                     .ok_or(errors::ConnectorError::ResponseHandlingFailed)?;
 
                 let transaction_status = item
@@ -760,8 +760,10 @@ impl TryFrom<&PaymentsSyncRouterData> for NovalnetSyncRequest {
 
 impl NovalnetSyncResponseTransactionData {
     pub fn get_token(transaction_data: Option<&Self>) -> Option<String> {
-        if let Some(data) = transaction_data {
-            match &data.payment_data {
+        if let Some(payment_data) =
+            transaction_data.and_then(|transaction_data| transaction_data.payment_data.clone())
+        {
+            match &payment_data {
                 NovalnetResponsePaymentData::PaymentCard(card_data) => card_data.token.clone(),
             }
         } else {
@@ -1143,9 +1145,8 @@ pub fn get_incoming_webhook_event(
             NovalnetTransactionStatus::OnHold => {
                 IncomingWebhookEvent::PaymentIntentAuthorizationSuccess
             }
-            NovalnetTransactionStatus::Pending | NovalnetTransactionStatus::Progress => {
-                IncomingWebhookEvent::PaymentIntentProcessing
-            }
+            NovalnetTransactionStatus::Pending => IncomingWebhookEvent::PaymentIntentProcessing,
+            NovalnetTransactionStatus::Progress => IncomingWebhookEvent::EventNotSupported,
             _ => IncomingWebhookEvent::PaymentIntentFailure,
         },
         WebhookEventType::TransactionCapture => match transaction_status {
