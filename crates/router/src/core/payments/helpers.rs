@@ -1198,9 +1198,9 @@ pub fn create_authorize_url(
 }
 
 pub fn create_webhook_url(
-    router_base_url: &String,
+    router_base_url: &str,
     merchant_id: &id_type::MerchantId,
-    connector_name: &String,
+    connector_name: &str,
 ) -> String {
     format!(
         "{}/webhooks/{}/{}",
